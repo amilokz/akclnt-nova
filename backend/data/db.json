@@ -1,0 +1,61 @@
+{
+  "watches": [
+    {
+      "id": "x1-violet",
+      "name": "NOVA X1 \u2014 Nebula Violet",
+      "ref": "X1 \u00b7 Violet",
+      "desc": "Deep violet glass that shifts with the light. 3 nm N1 chip, 120 Hz AMOLED, 5,200 mAh.",
+      "price": 289999,
+      "oldPrice": 309999,
+      "tag": "Best Seller",
+      "photos": [
+        "/img/nova/nova-studio.webp"
+      ],
+      "category": "Flagship",
+      "createdAt": 1
+    },
+    {
+      "id": "x1-graphite",
+      "name": "NOVA X1 \u2014 Graphite Black",
+      "ref": "X1 \u00b7 Graphite",
+      "desc": "Matte graphite over a titanium frame. Boardroom outside, race car inside.",
+      "price": 279999,
+      "oldPrice": null,
+      "tag": "New",
+      "photos": [
+        "/img/nova/nova-graphite.webp"
+      ],
+      "category": "Flagship",
+      "createdAt": 2
+    },
+    {
+      "id": "x1-pearl",
+      "name": "NOVA X1 \u2014 Pearl Silver",
+      "ref": "X1 \u00b7 Pearl",
+      "desc": "Pearl silver glass with a soft satin sheen. The quiet colourway, same flagship speed.",
+      "price": 279999,
+      "oldPrice": null,
+      "tag": "New",
+      "photos": [
+        "/img/nova/nova-hand.webp"
+      ],
+      "category": "Flagship",
+      "createdAt": 3
+    },
+    {
+      "id": "x1-concept",
+      "name": "NOVA X1 Concept \u2014 Exploded Edition",
+      "ref": "X1 \u00b7 Concept",
+      "desc": "The display piece: the four-layer stack, framed as built. For collectors of the process.",
+      "price": 319999,
+      "oldPrice": null,
+      "tag": "Concept",
+      "photos": [
+        "/img/nova/nova-layers.webp"
+      ],
+      "category": "Concept",
+      "createdAt": 4
+    }
+  ],
+  "orders": []
+}
