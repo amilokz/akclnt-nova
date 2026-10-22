@@ -1,16 +1,15 @@
-/* AKCLNT NOVA — NOVA X1
-   A cinematic scroll store: the phone floats in the hero, pulls apart layer
-   by layer in the Exploded chapter, changes colourways live, and settles
-   beside the drop countdown.
-   Engine core: AKCLNT Studio (three.js). Phone: generated procedurally —
-   four layers (back glass + camera, battery + coil, N1 mainboard, AMOLED
-   display) built from extruded slabs and canvas textures. No external model. */
+/* AKCLNT NOVA — Born, Not Built.
+   A scroll-driven birth: the N1 mainboard floats alone in the dark, the
+   battery flies in and seats itself, the display seals on, the back glass
+   closes — and then the screen wakes up. The screen is real: a live clock,
+   notifications, and apps you open by tapping the phone (raycast).
+   Engine core: AKCLNT Studio (three.js). Phone generated procedurally. */
 import { Engine, THREE, damp } from './src/core/engine.js';
 import { Assets } from './src/core/assets.js';
 import { Pointer } from './src/core/input.js';
 import { smoothScroll, gsap, elementProgress } from './src/core/scroll.js';
 import { preloader, cursor, magnetic } from './src/core/ui.js';
-import { makeStudio } from './studio.js';
+import { makeDarkStudio } from './studio-dark.js';
 import { ContactShadow } from './shadow.js';
 
 const canvas = document.getElementById('gl');
@@ -18,36 +17,49 @@ const IS_SMALL = matchMedia('(pointer: coarse)').matches || innerWidth < 900;
 const DPR = IS_SMALL ? 1 : 1.25;
 
 const engine = new Engine({
-  canvas, fov: 30, near: 0.05, far: 120, dpr: DPR, background: 0xffffff,
+  canvas, fov: 30, near: 0.05, far: 120, dpr: DPR, background: 0x05030a,
   post: {
     tone: 'neutral',
     ao: { aoRadius: 0.16, intensity: 2.0, distanceFalloff: 1.1, aoSamples: 8 },
-    bloom: { intensity: 0.5, luminanceThreshold: 1.25, luminanceSmoothing: 0.25, radius: 0.62 },
-    vignette: false, noise: 0.02, ca: 0.0004,
+    bloom: { intensity: 0.55, luminanceThreshold: 1.15, luminanceSmoothing: 0.25, radius: 0.62 },
+    vignette: false, noise: 0.025, ca: 0.0004,
   },
 });
 const { scene, camera, renderer } = engine;
-renderer.setClearColor(0xffffff, 1);
-makeStudio(renderer, scene, { front: 2.0, dome: 1.3 });
-camera.position.set(0, 0.35, 9);
+renderer.setClearColor(0x05030a, 1);
+makeDarkStudio(renderer, scene, { front: 1.6 });
+camera.position.set(0, 0.35, 9.8);
 
-/* Backdrop — fullscreen gradient, pure white with a violet breath. */
+/* Backdrop — deep space: aurora blobs + starfield, pure shader. */
 const backdrop = new THREE.Mesh(
   new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3)),
   new THREE.ShaderMaterial({
     depthWrite: false, depthTest: false,
     uniforms: {
-      uC: { value: new THREE.Color(0xffffff) },
       uRes: { value: new THREE.Vector2(1, 1) },
-      uFocus: { value: new THREE.Vector2(0.62, 0.5) },
+      uTime: { value: 0 },
     },
     vertexShader: 'void main(){ gl_Position = vec4(position.xy, 1.0, 1.0); }',
-    fragmentShader: `uniform vec3 uC; uniform vec2 uRes, uFocus;
-      void main(){ vec2 uv = gl_FragCoord.xy / uRes; vec2 d = (uv - uFocus) * vec2(uRes.x / uRes.y, 1.0);
-        float r = length(d);
-        vec3 c = uC * mix(1.12, 0.93, smoothstep(0.0, 1.3, r));
-        c += vec3(0.030, 0.018, 0.055) * (1.0 - smoothstep(0.0, 1.1, r));
-        gl_FragColor = vec4(c, 1.0); }`,
+    fragmentShader: `uniform vec2 uRes; uniform float uTime;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec2 uv = gl_FragCoord.xy / uRes;
+        vec2 asp = vec2(uRes.x / uRes.y, 1.0);
+        vec3 c = mix(vec3(0.012, 0.006, 0.030), vec3(0.020, 0.012, 0.039), uv.y);
+        vec2 a1 = (uv - vec2(0.70 + 0.07 * sin(uTime * 0.11), 0.58 + 0.05 * cos(uTime * 0.09))) * asp;
+        c += vec3(0.16, 0.09, 0.38) * exp(-dot(a1, a1) * 5.5);
+        vec2 a2 = (uv - vec2(0.16, 0.82 + 0.04 * sin(uTime * 0.07))) * asp;
+        c += vec3(0.02, 0.10, 0.13) * exp(-dot(a2, a2) * 7.0);
+        vec2 a3 = (uv - vec2(0.45, 0.06)) * asp;
+        c += vec3(0.10, 0.05, 0.22) * exp(-dot(a3, a3) * 6.0);
+        vec2 g = floor(uv * vec2(260.0, 170.0));
+        float s = hash(g);
+        float star = smoothstep(0.995, 1.0, s) * (0.45 + 0.55 * sin(uTime * 1.6 + s * 43.0));
+        c += vec3(0.75, 0.72, 0.95) * max(star, 0.0) * 0.5;
+        float vig = length((uv - 0.5) * asp);
+        c *= mix(1.0, 0.72, smoothstep(0.55, 1.35, vig));
+        gl_FragColor = vec4(c, 1.0);
+      }`,
   })
 );
 backdrop.frustumCulled = false;
@@ -55,13 +67,27 @@ backdrop.renderOrder = -10;
 scene.add(backdrop);
 engine.onResize((w, h, dpr) => backdrop.material.uniforms.uRes.value.set(w * dpr, h * dpr));
 
-const shadow = new ContactShadow(renderer, scene, { width: 6, depth: 4.2, y: -1.95, res: IS_SMALL ? 256 : 384, far: 3.4, blur: 3.2, opacity: 0.3 });
+const shadow = new ContactShadow(renderer, scene, { width: 6, depth: 4.2, y: -1.95, res: IS_SMALL ? 256 : 384, far: 3.4, blur: 3.2, opacity: 0.5 });
 shadow.hidden.push(backdrop);
+
+/* Glow pool under the phone — brightens when the screen wakes. */
+function makeGlowTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 256;
+  const c = cv.getContext('2d');
+  const g = c.createRadialGradient(128, 128, 8, 128, 128, 128);
+  g.addColorStop(0, 'rgba(140,110,255,0.85)');
+  g.addColorStop(0.4, 'rgba(108,76,241,0.35)');
+  g.addColorStop(1, 'rgba(108,76,241,0)');
+  c.fillStyle = g; c.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 /* ─── Loader ─── */
 const assets = new Assets();
 const loaderEl = document.querySelector('.loader');
-
 const loader = preloader({
   assets, el: loaderEl, minTime: 650,
   onValue: (v) => { loaderEl.style.setProperty('--p', v); loaderEl.querySelector('.loader-n').textContent = Math.round(v * 100); },
@@ -75,15 +101,24 @@ cursor({ color: '#A78BFA' });
 magnetic();
 smoothScroll({ lerp: 0.08 });
 
-/* ─── Phone — procedural, four explodable layers ─── */
+/* ─── Phone — procedural, four layers that assemble ─── */
 const rig = new THREE.Group();
 scene.add(rig);
-let phone = null;
 let bands = [];
-let spinKick = 0;
+let backMat = null, chipMat = null, screenMesh = null;
 
-const PW = 1.55, PH = 3.3; // phone width / height in world units
+const glow = new THREE.Mesh(
+  new THREE.PlaneGeometry(4.8, 4.8),
+  new THREE.MeshBasicMaterial({ map: makeGlowTexture(), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })
+);
+glow.rotation.x = -Math.PI / 2;
+glow.position.y = -1.98;
+scene.add(glow);
+const wakeLight = new THREE.PointLight(0x8F7BFF, 1.5, 8, 1.8);
+wakeLight.position.set(0, 0.2, 2.3);
+rig.add(wakeLight);
 
+const PW = 1.55, PH = 3.3;
 function roundedShape(w, h, r) {
   const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
   s.moveTo(x + r, y);
@@ -103,48 +138,185 @@ function slab(w, h, depth, r, mats) {
   return mesh;
 }
 
-/* Screen UI — drawn on a canvas; the wallpaper follows the colourway. */
+/* ─── The living screen ─── */
+const CW = {
+  violet:   { back: 0x6C4CF1, wall: ['#1D0F3E', '#6C4CF1', '#B79CFF'] },
+  graphite: { back: 0x232328, wall: ['#0A0A0E', '#26262E', '#5A5A6E'] },
+  pearl:    { back: 0xC9CCD6, wall: ['#2E3442', '#7E8AA3', '#D9DEE9'] },
+};
+let currentCW = 'violet';
+const screenState = { mode: 'off', since: performance.now() };
 const screenCanvas = document.createElement('canvas');
 screenCanvas.width = 448; screenCanvas.height = 920;
 const screenTex = new THREE.CanvasTexture(screenCanvas);
 screenTex.colorSpace = THREE.SRGBColorSpace;
 screenTex.anisotropy = 4;
-function drawScreen(wall) {
-  const c = screenCanvas.getContext('2d'), W = 448, H = 920;
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const clockStr = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const dateStr = () => { const d = new Date(); return DAYS[d.getDay()] + ', ' + MONS[d.getMonth()] + ' ' + d.getDate(); };
+
+function wallpaper(c, W, H) {
+  const wall = CW[currentCW].wall;
   const g = c.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, wall[0]); g.addColorStop(0.55, wall[1]); g.addColorStop(1, wall[2]);
   c.fillStyle = g; c.fillRect(0, 0, W, H);
-  const glow = c.createRadialGradient(W * 0.78, H * 0.24, 10, W * 0.78, H * 0.24, 300);
-  glow.addColorStop(0, 'rgba(255,255,255,0.35)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = glow; c.fillRect(0, 0, W, H);
+  const glowG = c.createRadialGradient(W * 0.78, H * 0.22, 10, W * 0.78, H * 0.22, 300);
+  glowG.addColorStop(0, 'rgba(255,255,255,0.32)'); glowG.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = glowG; c.fillRect(0, 0, W, H);
+}
+function statusBar(c, W) {
   c.fillStyle = '#0A0A0C';
   c.beginPath(); c.arc(W / 2, 34, 11, 0, Math.PI * 2); c.fill();
   c.fillStyle = 'rgba(255,255,255,0.92)';
-  c.font = '500 25px "Space Grotesk", sans-serif'; c.textAlign = 'left';
-  c.fillText('9:41', 30, 44);
-  c.textAlign = 'right'; c.fillText('5G', W - 30, 44);
-  c.textAlign = 'left';
-  c.font = '600 96px "Space Grotesk", sans-serif';
-  c.fillText('9:41', 34, 218);
-  c.font = '500 27px "Space Grotesk", sans-serif';
-  c.fillStyle = 'rgba(255,255,255,0.85)';
-  c.fillText('Tuesday, Nov 20', 38, 262);
-  const icons = ['#FF6B5E', '#FFB340', '#3ED598', '#4EA8FF', '#B79CFF', '#FF7AC1', '#39C6D6', '#8FE388',
-                 '#FFD65E', '#7A8CFF', '#FF8A5E', '#5ED5B0', '#C58CFF', '#5EB1FF', '#FF6B8A', '#A8B3C7'];
-  const s0 = 78, gap = 22, x0 = 36, y0 = 330;
-  icons.forEach((col, i) => {
-    const cx = x0 + (i % 4) * (s0 + gap), cy = y0 + Math.floor(i / 4) * (s0 + gap);
-    c.fillStyle = col; c.beginPath(); c.roundRect(cx, cy, s0, s0, 20); c.fill();
-    c.fillStyle = 'rgba(255,255,255,0.55)'; c.beginPath(); c.roundRect(cx + 16, cy + 16, s0 - 32, s0 - 32, 12); c.fill();
-  });
-  c.fillStyle = 'rgba(255,255,255,0.28)';
-  c.beginPath(); c.roundRect(24, H - 128, W - 48, 104, 30); c.fill();
-  ['#34C759', '#4EA8FF', '#B79CFF', '#FF9F0A'].forEach((col, i) => {
-    const cx = x0 + i * (s0 + gap);
-    c.fillStyle = col; c.beginPath(); c.roundRect(cx, H - 116, s0, s0, 20); c.fill();
-  });
+  c.font = '500 24px "Space Grotesk", sans-serif'; c.textAlign = 'left';
+  c.fillText(clockStr(), 30, 43);
+  c.textAlign = 'right'; c.fillText('5G', W - 30, 43); c.textAlign = 'left';
+}
+function drawIcon(c, x, y, s, i) {
+  if (i === 0) { // camera
+    c.fillStyle = '#1C1C22'; c.beginPath(); c.roundRect(x, y, s, s, 20); c.fill();
+    c.strokeStyle = '#E8E8F2'; c.lineWidth = 5;
+    c.beginPath(); c.arc(x + s / 2, y + s / 2, 17, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#6C4CF1'; c.beginPath(); c.arc(x + s / 2, y + s / 2, 6, 0, Math.PI * 2); c.fill();
+    return;
+  }
+  if (i === 1) { // music
+    c.fillStyle = '#6C4CF1'; c.beginPath(); c.roundRect(x, y, s, s, 20); c.fill();
+    c.fillStyle = '#fff';
+    c.beginPath(); c.arc(x + 30, y + 54, 10, 0, Math.PI * 2); c.fill();
+    c.fillRect(x + 38, y + 18, 5, 36); c.fillRect(x + 38, y + 18, 20, 6);
+    c.beginPath(); c.arc(x + 58, y + 48, 8, 0, Math.PI * 2); c.fill();
+    c.fillRect(x + 64, y + 18, 4, 30);
+    return;
+  }
+  const cols = ['#FF6B5E', '#FFB340', '#3ED598', '#4EA8FF', '#B79CFF', '#FF7AC1', '#39C6D6', '#8FE388', '#FFD65E', '#7A8CFF', '#FF8A5E', '#5ED5B0', '#C58CFF', '#5EB1FF'];
+  c.fillStyle = cols[(i - 2) % cols.length];
+  c.beginPath(); c.roundRect(x, y, s, s, 20); c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.5)';
+  c.beginPath(); c.roundRect(x + 16, y + 16, s - 32, s - 32, 12); c.fill();
+}
+function drawScreen() {
+  const c = screenCanvas.getContext('2d'), W = 448, H = 920;
+  const mode = screenState.mode, now = performance.now();
+  if (mode === 'off') {
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    const g = c.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0.25, 'rgba(255,255,255,0)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0.055)');
+    g.addColorStop(0.75, 'rgba(255,255,255,0)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  } else if (mode === 'boot') {
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    const a = 0.55 + 0.45 * Math.sin(now / 330);
+    c.globalAlpha = Math.max(0.15, a);
+    c.fillStyle = '#C9B8FF'; c.textAlign = 'center';
+    c.font = '700 74px "Space Grotesk", sans-serif';
+    c.fillText('NOVA', W / 2, H / 2 - 6);
+    c.font = '500 21px "JetBrains Mono", monospace';
+    c.fillStyle = '#8F7BFF';
+    c.fillText('A K C L N T', W / 2, H / 2 + 44);
+    c.globalAlpha = 1; c.textAlign = 'left';
+  } else if (mode === 'lock') {
+    wallpaper(c, W, H); statusBar(c, W);
+    c.fillStyle = 'rgba(255,255,255,0.96)'; c.textAlign = 'left';
+    c.font = '600 100px "Space Grotesk", sans-serif';
+    c.fillText(clockStr(), 34, 224);
+    c.font = '500 27px "Space Grotesk", sans-serif';
+    c.fillStyle = 'rgba(255,255,255,0.85)';
+    c.fillText(dateStr(), 38, 268);
+    const t = Math.min(1, Math.max(0, (now - screenState.since - 900) / 600));
+    if (t > 0) {
+      const y = 322 + (1 - t) * -26;
+      c.globalAlpha = t;
+      c.fillStyle = 'rgba(16,12,28,0.72)';
+      c.beginPath(); c.roundRect(24, y, W - 48, 96, 24); c.fill();
+      c.fillStyle = '#B79CFF'; c.font = '600 19px "JetBrains Mono", monospace';
+      c.fillText('AKCLNT · NOW', 44, y + 34);
+      c.fillStyle = 'rgba(255,255,255,0.94)'; c.font = '500 23px "Space Grotesk", sans-serif';
+      c.fillText('Welcome to your NOVA X1.', 44, y + 68);
+      c.globalAlpha = 1;
+    }
+    c.fillStyle = 'rgba(255,255,255,0.75)'; c.textAlign = 'center';
+    c.font = '500 20px "Space Grotesk", sans-serif';
+    c.fillText('Tap to open', W / 2, H - 52);
+    c.beginPath(); c.roundRect(W / 2 - 34, H - 34, 68, 7, 4); c.fill();
+    c.textAlign = 'left';
+  } else if (mode === 'home') {
+    wallpaper(c, W, H); statusBar(c, W);
+    c.fillStyle = 'rgba(16,12,28,0.42)';
+    c.beginPath(); c.roundRect(24, 92, W - 48, 128, 26); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.96)';
+    c.font = '600 56px "Space Grotesk", sans-serif';
+    c.fillText(clockStr(), 46, 156);
+    c.font = '500 22px "Space Grotesk", sans-serif';
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    c.fillText(dateStr(), 48, 192);
+    const s0 = 78, gap = 22, x0 = 36, y0 = 268;
+    for (let i = 0; i < 16; i++) drawIcon(c, x0 + (i % 4) * (s0 + gap), y0 + Math.floor(i / 4) * (s0 + gap), s0, i);
+    c.fillStyle = 'rgba(255,255,255,0.26)';
+    c.beginPath(); c.roundRect(24, H - 128, W - 48, 104, 30); c.fill();
+    ['#34C759', '#4EA8FF', '#B79CFF', '#FF9F0A'].forEach((col, i) => {
+      c.fillStyle = col; c.beginPath(); c.roundRect(x0 + i * (s0 + gap), H - 116, s0, s0, 20); c.fill();
+    });
+  } else if (mode === 'camera') {
+    const g = c.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#2A1B5E'); g.addColorStop(0.55, '#6C4CF1'); g.addColorStop(0.78, '#151022'); g.addColorStop(1, '#0A0714');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#E9E4FF'; c.beginPath(); c.arc(W * 0.74, H * 0.2, 34, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(5,3,12,0.85)';
+    [40, 130, 250].forEach((x, i) => { const h = 190 + i * 60; c.fillRect(x, H * 0.78 - h, 84, h); });
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 2;
+    [W / 3, 2 * W / 3].forEach((x) => { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); });
+    [H / 3, 2 * H / 3].forEach((y) => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
+    c.fillStyle = '#FF3B30'; c.beginPath(); c.arc(40, 52, 10, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff'; c.font = '600 24px "JetBrains Mono", monospace'; c.textAlign = 'left';
+    const sec = Math.floor((now - screenState.since) / 1000);
+    c.fillText('REC 00:' + String(sec).padStart(2, '0'), 62, 60);
+    c.font = '500 21px "JetBrains Mono", monospace';
+    c.fillText('48 MP · NIGHT', 30, H - 118);
+    c.strokeStyle = '#fff'; c.lineWidth = 5;
+    c.beginPath(); c.arc(W / 2, H - 58, 30, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(W / 2, H - 58, 21, 0, Math.PI * 2); c.fill();
+  } else if (mode === 'music') {
+    c.fillStyle = '#0B0616'; c.fillRect(0, 0, W, H);
+    const g = c.createLinearGradient(60, 130, 388, 458);
+    g.addColorStop(0, '#6C4CF1'); g.addColorStop(1, '#2A1B5E');
+    c.fillStyle = g; c.beginPath(); c.roundRect(60, 130, 328, 328, 28); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.85)'; c.textAlign = 'center';
+    c.font = '700 54px "Space Grotesk", sans-serif';
+    c.fillText('NOVA', W / 2, 318);
+    c.textAlign = 'left';
+    c.font = '600 30px "Space Grotesk", sans-serif'; c.fillStyle = '#fff';
+    c.fillText('Midnight Circuit', 48, 540);
+    c.font = '500 23px "Space Grotesk", sans-serif'; c.fillStyle = 'rgba(255,255,255,0.55)';
+    c.fillText('Nova Tones', 48, 576);
+    const barW = 26, gapB = 12, bx = 48;
+    for (let i = 0; i < 10; i++) {
+      const h = 22 + 46 * Math.abs(Math.sin(now / 300 + i * 1.35));
+      c.fillStyle = i % 2 ? '#6C4CF1' : '#A78BFA';
+      c.beginPath(); c.roundRect(bx + i * (barW + gapB), 700 - h, barW, h, 6); c.fill();
+    }
+    const prog = ((now - screenState.since) / 1000 % 214) / 214;
+    c.fillStyle = 'rgba(255,255,255,0.22)'; c.beginPath(); c.roundRect(48, 748, W - 96, 7, 4); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.roundRect(48, 748, (W - 96) * prog, 7, 4); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(W / 2, 838, 34, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#0B0616';
+    c.fillRect(W / 2 - 13, 818, 9, 40); c.fillRect(W / 2 + 5, 818, 9, 40);
+  }
   screenTex.needsUpdate = true;
 }
+function setMode(m) {
+  if (screenState.mode === m) return;
+  screenState.mode = m;
+  screenState.since = performance.now();
+  drawScreen();
+}
+setInterval(() => {
+  const m = screenState.mode;
+  if (m === 'boot' || m === 'camera' || m === 'music') drawScreen();
+  else if ((m === 'lock' || m === 'home') && new Date().getSeconds() % 5 === 0) drawScreen();
+}, 200);
 
 /* Mainboard — circuit texture drawn on a canvas. */
 function makeBoardTexture() {
@@ -177,18 +349,11 @@ function makeBoardTexture() {
   return tex;
 }
 
-const CW = {
-  violet:   { back: 0x6C4CF1, wall: ['#1D0F3E', '#6C4CF1', '#B79CFF'] },
-  graphite: { back: 0x232328, wall: ['#0A0A0E', '#26262E', '#5A5A6E'] },
-  pearl:    { back: 0xC9CCD6, wall: ['#2E3442', '#7E8AA3', '#D9DEE9'] },
-};
-let backMat = null;
-
 function buildPhone() {
   const group = new THREE.Group();
   const bandGroups = [];
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x17171C, roughness: 0.42, metalness: 0.75 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x232329, roughness: 0.55, metalness: 0.4 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x2A2A33, roughness: 0.35, metalness: 0.85 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1B1B21, roughness: 0.55, metalness: 0.4 });
 
   /* Band 0 — back glass + camera module */
   const b0 = new THREE.Group();
@@ -210,50 +375,53 @@ function buildPhone() {
   /* Band 1 — midframe, battery + wireless coil */
   const b1 = new THREE.Group();
   const mid = slab(PW - 0.08, PH - 0.08, 0.04, 0.15, darkMat); mid.position.z = -0.035; b1.add(mid);
-  const batt = new THREE.Mesh(new THREE.BoxGeometry(1.06, 2.0, 0.045), new THREE.MeshStandardMaterial({ color: 0x3A3F47, roughness: 0.5, metalness: 0.3 }));
+  const batt = new THREE.Mesh(new THREE.BoxGeometry(1.06, 2.0, 0.045), new THREE.MeshStandardMaterial({ color: 0x424854, roughness: 0.45, metalness: 0.35 }));
   batt.position.set(0, -0.3, -0.005); batt.frustumCulled = false; b1.add(batt);
   const coil = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.016, 12, 48), new THREE.MeshStandardMaterial({ color: 0xB87333, roughness: 0.35, metalness: 0.9 }));
   coil.position.set(0, -0.3, 0.02); coil.frustumCulled = false; b1.add(coil);
   group.add(b1); bandGroups.push(b1);
 
-  /* Band 2 — mainboard + N1 chip */
+  /* Band 2 — mainboard + N1 chip (the spark — always present) */
   const b2 = new THREE.Group();
   const boardTex = makeBoardTexture();
   const boardCap = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.6, metalness: 0.25 });
   const board = slab(PW - 0.08, PH - 0.08, 0.028, 0.15, [boardCap, darkMat]); board.position.z = 0.032; b2.add(board);
-  const chip = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.035), new THREE.MeshStandardMaterial({ color: 0x0C0C10, roughness: 0.25, metalness: 0.5 }));
+  chipMat = new THREE.MeshStandardMaterial({ color: 0x0C0C10, roughness: 0.25, metalness: 0.5, emissive: 0x6C4CF1, emissiveIntensity: 0.6 });
+  const chip = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.035), chipMat);
   chip.position.set(0, 1.06, 0.062); chip.frustumCulled = false; b2.add(chip);
   group.add(b2); bandGroups.push(b2);
 
-  /* Band 3 — display assembly + screen */
+  /* Band 3 — display assembly + the living screen */
   const b3 = new THREE.Group();
   const disp = slab(PW - 0.02, PH - 0.02, 0.045, 0.16, frameMat); disp.position.z = 0.098; b3.add(disp);
-  drawScreen(CW.violet.wall);
-  const screen = new THREE.Mesh(
+  drawScreen();
+  screenMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(PW - 0.13, PH - 0.16),
     new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false })
   );
-  screen.position.z = 0.126; screen.frustumCulled = false; b3.add(screen);
+  screenMesh.position.z = 0.126; screenMesh.frustumCulled = false; b3.add(screenMesh);
   group.add(b3); bandGroups.push(b3);
 
   return { group, bandGroups };
 }
 
-/* ─── Scroll choreography ─── */
+/* ─── Scroll choreography — assembly, not explosion ─── */
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 const ss = (v, a, b) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
+const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
 const lerp = (a, b, t) => a + (b - a) * t;
 
 const stages = [
-  { el: '.hero',       st: { x: 1.5, y: 0, ry: -0.42, rx: 0.10, rz: 0.05, camZ: 9.2, s: 0.98, explode: 0 } },
-  { el: '.exploded',   st: { x: 0, y: 0, ry: -0.25, rx: 0.32, rz: 0, camZ: 10.6, s: 0.94, explode: 1 }, at: 0.45 },
-  { el: '.tech',       st: { x: 1.8, y: 0, ry: 0.75, rx: 0.08, rz: 0, camZ: 9.8, s: 0.9, explode: 0.5 }, at: 0.3 },
-  { el: '.colourways', st: { x: 0, y: -0.05, ry: -0.30, rx: 0.06, rz: 0, camZ: 9.0, s: 1.0, explode: 0 }, at: 0.35 },
-  { el: '.lab',        st: { x: 1.7, y: 0, ry: 0.50, rx: 0.10, rz: 0, camZ: 10.2, s: 0.88, explode: 0.1 }, at: 0.4 },
-  { el: '.cta',        st: { x: 1.35, y: -0.05, ry: -0.85, rx: 0.10, rz: 0.04, camZ: 10.4, s: 0.92, explode: 0.22 }, at: 0.4 },
+  { el: '.hero',       st: { x: 0, y: -0.1, ry: -0.55, rx: 0.14, rz: 0.03, camZ: 9.8, s: 0.92 } },
+  { el: '.beat-spark', st: { x: 1.6, y: 0, ry: 0.55, rx: 0.18, rz: 0, camZ: 9.0, s: 0.98 }, at: 0.45 },
+  { el: '.beat-heart', st: { x: -1.6, y: 0, ry: -0.95, rx: 0.12, rz: 0, camZ: 9.4, s: 0.95 }, at: 0.45 },
+  { el: '.beat-face',  st: { x: 1.6, y: 0, ry: -0.12, rx: 0.06, rz: 0, camZ: 9.2, s: 0.97 }, at: 0.45 },
+  { el: '.beat-skin',  st: { x: -1.6, y: 0, ry: 2.65, rx: 0.10, rz: 0, camZ: 9.6, s: 0.95 }, at: 0.45 },
+  { el: '.firstlight', st: { x: 0, y: -0.02, ry: -0.14, rx: 0.05, rz: 0, camZ: 8.7, s: 1.04 }, at: 0.4 },
+  { el: '.colourways', st: { x: 1.55, y: 0, ry: -0.5, rx: 0.08, rz: 0, camZ: 9.4, s: 0.95 }, at: 0.35 },
+  { el: '.cta',        st: { x: 1.6, y: -0.05, ry: -0.85, rx: 0.10, rz: 0.04, camZ: 10.2, s: 0.9 }, at: 0.4 },
 ];
-if (IS_SMALL) stages[0].st = { x: 0, y: -0.35, ry: -0.4, rx: 0.12, rz: 0.03, camZ: 9.6, s: 0.78, explode: 0 };
-const sideItems = [...document.querySelectorAll('.stack-side li')];
+if (IS_SMALL) stages[0].st = { x: 0, y: -0.45, ry: -0.5, rx: 0.12, rz: 0.02, camZ: 10.4, s: 0.8 };
 let anchors = [];
 function measure() {
   const y = window.scrollY;
@@ -268,6 +436,11 @@ addEventListener('resize', measure);
 setTimeout(measure, 600);
 setTimeout(measure, 1800);
 
+function stageIndex(scrollY) {
+  let idx = 0;
+  for (let i = 0; i < anchors.length; i++) if (scrollY >= anchors[i].scroll - innerHeight * 0.4) idx = i;
+  return idx;
+}
 function stageState(scrollY) {
   if (!anchors.length) return stages[0].st;
   if (scrollY <= anchors[0].scroll) return anchors[0].st;
@@ -285,39 +458,85 @@ function stageState(scrollY) {
 
 const steps = [...document.querySelectorAll('[data-k]')];
 const windows = {
-  1: ['.exploded', 0.02, 0.30], 2: ['.exploded', 0.30, 0.55], 3: ['.exploded', 0.55, 0.78], 4: ['.exploded', 0.78, 0.995],
-  5: ['.tech', 0.04, 0.46], 6: ['.tech', 0.40, 0.72], 7: ['.tech', 0.66, 0.97],
-  8: ['.colourways', 0.08, 0.96], 9: ['.lab', 0.12, 0.97], 10: ['.cta', 0.1, 1.01],
+  1: ['.beat-spark', 0.05, 0.95], 2: ['.beat-heart', 0.05, 0.95], 3: ['.beat-face', 0.05, 0.95], 4: ['.beat-skin', 0.05, 0.95],
+  5: ['.firstlight', 0.34, 0.985], 8: ['.firstlight', 0.45, 0.985],
+  6: ['.colourways', 0.08, 0.96], 7: ['.cta', 0.08, 1.01],
 };
 const sectionEls = {};
 for (const k in windows) sectionEls[windows[k][0]] = document.querySelector(windows[k][0]);
+sectionEls['.beat-heart'] = document.querySelector('.beat-heart');
+sectionEls['.beat-face'] = document.querySelector('.beat-face');
+sectionEls['.beat-skin'] = document.querySelector('.beat-skin');
+sectionEls['.firstlight'] = document.querySelector('.firstlight');
+sectionEls['.colourways'] = document.querySelector('.colourways');
 const win = (p, a, b) => ss(p, a, a + 0.07) * (1 - ss(p, b - 0.07, b));
 
-const labelEls = [...document.querySelectorAll('.label')];
-const projV = new THREE.Vector3();
-function updateLabels(explodeCur, pExp) {
-  const show = explodeCur > 0.18 && pExp > 0 && pExp < 1;
-  for (const el of labelEls) {
-    const band = bands[+el.dataset.band];
-    if (!band || !show) { el.style.setProperty('--v', 0); continue; }
-    band.getWorldPosition(projV);
-    projV.x += (+el.dataset.band % 2 === 0 ? -1 : 1) * 1.3;
-    projV.project(camera);
-    el.style.setProperty('--lx', ((projV.x * 0.5 + 0.5) * innerWidth).toFixed(1) + 'px');
-    el.style.setProperty('--ly', ((-projV.y * 0.5 + 0.5) * innerHeight).toFixed(1) + 'px');
-    el.style.setProperty('--v', Math.min(1, (explodeCur - 0.18) / 0.35).toFixed(3));
-  }
+/* Assembly indicator */
+const asmStepEl = document.getElementById('asm-step');
+const asmDots = [...document.querySelectorAll('.asm-dots i')];
+const ASM_TEXT = ['Awaiting first part', '01 · The Spark — mainboard', '02 · The Heart — battery seated', '03 · The Face — display sealed', '04 · The Skin — body whole', '05 · First Light — it wakes', 'Assembly complete', 'Assembly complete'];
+let lastAsm = -1;
+function updateAssembly(idx) {
+  if (idx === lastAsm) return;
+  lastAsm = idx;
+  if (asmStepEl) asmStepEl.textContent = ASM_TEXT[Math.min(idx, ASM_TEXT.length - 1)];
+  asmDots.forEach((d, i) => d.classList.toggle('on', i < Math.min(idx, 5)));
 }
 
-/* Colourways — live back-glass colour + wallpaper swap. */
+/* ─── Tap the phone — raycast to the screen ─── */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+let flySkinCur = 0;
+function bootSequence() {
+  setMode('boot');
+  setTimeout(() => { if (screenState.mode === 'boot') setMode('lock'); }, 1150);
+}
+function handleScreenTap(uv) {
+  const m = screenState.mode;
+  if (m === 'lock') { setMode('home'); return; }
+  if (m === 'boot') { setMode('lock'); return; }
+  if (m === 'off') { if (flySkinCur > 0.98) bootSequence(); return; }
+  if (m === 'camera' || m === 'music') { setMode('home'); return; }
+  if (m === 'home' && uv) {
+    const cx = uv.x * 448, cy = (1 - uv.y) * 920;
+    const s0 = 78, gap = 22, x0 = 36, y0 = 268;
+    const col = Math.floor((cx - x0) / (s0 + gap)), row = Math.floor((cy - y0) / (s0 + gap));
+    if (row === 0 && col === 0) setMode('camera');
+    else if (row === 0 && col === 1) setMode('music');
+  }
+}
+canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt || !screenMesh) return;
+  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+  const dt = performance.now() - downAt.t;
+  downAt = null;
+  if (moved > 10 || dt > 500) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObject(screenMesh, false)[0];
+  if (hit) handleScreenTap(hit.uv);
+});
+window.__novaWake = () => {
+  const m = screenState.mode;
+  if (m === 'lock') setMode('home');
+  else if (m === 'off' && flySkinCur > 0.98) bootSequence();
+  else if (m === 'boot') setMode('lock');
+};
+document.querySelector('.wake-btn')?.addEventListener('click', () => window.__novaWake());
+
+/* Finishes — back glass + wallpaper change live; layers tease apart. */
+let spinKick = 0, sepKick = 0;
 document.querySelectorAll('.cw-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.cw-btn').forEach((b) => b.classList.toggle('active', b === btn));
-    spinKick += 3.2;
+    spinKick += 3.2; sepKick = 1;
     const cw = CW[btn.dataset.cw];
     if (!cw || !backMat) return;
+    currentCW = btn.dataset.cw;
     backMat.color.set(cw.back);
-    drawScreen(cw.wall);
+    drawScreen();
   });
 });
 
@@ -340,12 +559,15 @@ setInterval(tickCountdown, 1000);
 (async () => {
   try {
     const built = buildPhone();
-    phone = built.group;
     bands = built.bandGroups;
-    rig.add(phone);
+    rig.add(built.group);
+    bands[0].visible = false; // back glass — not born yet
+    bands[1].visible = false; // battery
+    bands[3].visible = false; // display
   } catch (err) {
     console.error('AKCLNT NOVA — phone failed to build', err);
   }
+  drawScreen();
   await loader.finish();
   gsap.to('.hero-inner > *', { opacity: 1, y: 0, duration: 1.2, stagger: 0.09, ease: 'power3.out', delay: 0.1 });
   gsap.to('.hero-spec', { opacity: 1, duration: 1.2, delay: 0.55 });
@@ -354,23 +576,62 @@ setInterval(tickCountdown, 1000);
 })();
 
 const cur = { ...stages[0].st };
-let explodeCur = 0;
+let sepCur = 0, spinAccum = 0, glowCur = 0.22;
+const FLY_FROM = { 0: new THREE.Vector3(-3.0, 0.6, -2.4), 1: new THREE.Vector3(3.0, -0.8, -1.4), 3: new THREE.Vector3(0, 1.8, 3.4) };
 engine.onTick((dt, t) => {
   pointer.update(dt);
+  backdrop.material.uniforms.uTime.value = t;
   const scrollY = window.scrollY;
   const target = stageState(scrollY);
-  const pExp = elementProgress(sectionEls['.exploded']);
-  let ry = target.ry;
-  if (pExp > 0 && pExp < 1) ry += (pExp - 0.45) * 1.7;
+
+  /* Assembly flies — each part arrives during its own beat. */
+  const pHeart = elementProgress(sectionEls['.beat-heart']);
+  const pFace = elementProgress(sectionEls['.beat-face']);
+  const pSkin = elementProgress(sectionEls['.beat-skin']);
+  const fly = {
+    0: ss(pSkin, 0.18, 0.72),
+    1: ss(pHeart, 0.18, 0.72),
+    3: ss(pFace, 0.18, 0.72),
+  };
+  flySkinCur = fly[0];
+  if (bands.length) {
+    for (const i of [0, 1, 3]) {
+      const bg = bands[i], f = fly[i];
+      bg.visible = f > 0.001;
+      if (!bg.visible) continue;
+      const e = i === 1 ? f : easeOutBack(Math.max(f, 0.0001));
+      const from = FLY_FROM[i];
+      const m = Math.max(1 - e, -0.05);
+      bg.position.set(from.x * m, from.y * m + Math.sin(t * 1.1 + i * 2.1) * 0.02 * f, from.z * m + (i - 1.5) * 0.14 * sepCur);
+      bg.rotation.set(0, (1 - f) * (i === 0 ? -0.5 : 0.35), (1 - f) * 0.12);
+    }
+    bands[2].position.z = (2 - 1.5) * 0.14 * sepCur;
+  }
+  sepKick = damp(sepKick, 0, 2.4, dt);
+  sepCur = damp(sepCur, sepKick, 6, dt);
+
+  /* First Light — scroll boots the phone. */
+  const pLight = elementProgress(sectionEls['.firstlight']);
+  const m = screenState.mode;
+  if (pLight > 0.10 && m === 'off' && flySkinCur > 0.98) setMode('boot');
+  if (pLight > 0.48 && m === 'boot') setMode('lock');
+  if (pLight < 0.04 && (m === 'boot' || m === 'lock')) setMode('off');
+
+  /* Life signs — chip pulse + wake light + glow pool. */
+  const screenOn = screenState.mode !== 'off';
+  if (chipMat) chipMat.emissiveIntensity = screenOn ? 1.35 : 0.55 + 0.4 * Math.sin(t * 2.2);
+  wakeLight.intensity = damp(wakeLight.intensity, screenOn ? 9 : 1.5, 4, dt);
+  glowCur = damp(glowCur, screenOn ? 0.5 : 0.22, 4, dt);
+  glow.material.opacity = glowCur;
+  glow.position.x = cur.x * (IS_SMALL ? 0.3 : 1);
+
+  /* Pose. */
+  const pCw = elementProgress(sectionEls['.colourways']);
+  if (pCw > 0.02 && pCw < 0.98) spinAccum += dt * 0.35;
   spinKick = damp(spinKick, 0, 2.2, dt);
-  ry += spinKick * dt * 2.4;
+  let ry = target.ry + spinAccum + spinKick * dt * 2.4;
   for (const k in cur) cur[k] = damp(cur[k], k === 'ry' ? ry : target[k], 4.2, dt);
-
-  let exT = target.explode;
-  if (pExp > 0 && pExp < 1) exT = ss(pExp, 0.06, 0.38) * (1 - ss(pExp, 0.93, 1) * 0.45);
-  explodeCur = damp(explodeCur, exT, 5, dt);
-
-  const xF = IS_SMALL ? 0.42 : 1;
+  const xF = IS_SMALL ? 0.3 : 1;
   rig.position.set(
     cur.x * xF + pointer.sx * 0.14,
     cur.y + Math.sin(t * 0.8) * 0.045 - pointer.sy * 0.08,
@@ -381,13 +642,7 @@ engine.onTick((dt, t) => {
   camera.position.set(0, 0.35, cur.camZ + (IS_SMALL ? 1.7 : 0));
   camera.lookAt(0, -0.05, 0);
 
-  if (phone) bands.forEach((bg, i) => {
-    const off = i - 1.5;
-    bg.position.z = off * 0.62 * explodeCur;
-    bg.position.y = Math.sin(t * 1.2 + i * 1.7) * 0.03 * explodeCur;
-    bg.rotation.y = off * 0.10 * explodeCur;
-  });
-  updateLabels(explodeCur, pExp);
+  updateAssembly(stageIndex(scrollY));
 
   for (const el of steps) {
     const w = windows[el.dataset.k];
@@ -395,14 +650,6 @@ engine.onTick((dt, t) => {
     const v = win(elementProgress(sectionEls[w[0]]), w[1], w[2]);
     el.style.setProperty('--v', v.toFixed(3));
     el.classList.toggle('is-v', v > 0.4);
-  }
-  document.querySelectorAll('.rail li').forEach((li) => {
-    const w = windows[li.dataset.k];
-    li.classList.toggle('on', w ? win(pExp, w[1], w[2]) > 0.4 : false);
-  });
-  for (const li of sideItems) {
-    const w = windows[li.dataset.side];
-    li.classList.toggle('on', w ? win(pExp, w[1], w[2]) > 0.4 : false);
   }
 });
 

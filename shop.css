@@ -1,16 +1,16 @@
 /* ============================================================
-   AKCLNT VELOCITY SHOP PAGE — graphite navy + volt orange
+   AKCLNT NOVA SHOP PAGE — dark cosmic + violet
    ============================================================ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --cream: #FFFFFF;
-  --dark: #FFFFFF;
-  --navy: #14161C;
+  --cream: #05030A;
+  --dark: #0B0618;
+  --navy: #F4F1FF;
   --bronze: #6C4CF1;
   --bronze-light: #C4B0FF;
-  --line: rgba(255, 122, 26, 0.18);
+  --line: rgba(167, 139, 250, 0.20);
 }
 
 body {
